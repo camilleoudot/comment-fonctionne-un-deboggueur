@@ -80,19 +80,19 @@ int main(int argc, char *argv[]) {
 
 static pid_t launch_tracee(char *argv[]) {
 	pid_t child = fork();
-	if (child > 0) { /* in the debugger */
-		return child;
-	} else if (child == 0) { /* in the tracee */
+
+	if (child == 0) { /* in the tracee */
 		setup_tracee();
 		raise(SIGSTOP);
 		if (execvp(*argv, argv)) {
 			perror(*argv);
+			exit(1);
 		}
-		return -1;
-	} else { /* fork() failed */
+	} else if (child < 0) { /* fork() failed */
 		perror("fork");
-		return -1;
 	}
+
+	return child;
 }
 
 static void setup_tracee(void) {
@@ -142,7 +142,9 @@ static void debug(pid_t tracee) {
 						"address %p\n",
 						tracee,
 						break_address);
+
 				debugger_console(tracee);
+
 				printf("DEBUGGER: <<< resuming PID %d\n", tracee);
 				ptrace(PTRACE_CONT, tracee, NULL, NULL);
 			}
@@ -164,18 +166,20 @@ static void debugger_console(pid_t tracee) {
 	while (!exit) {
 		printf("(PID %d)> ", tracee);
 		if (scanf("%c", &command) == 1) {
-			while (scanf("%c", &_) == 1 && _ != '\n');
+			if (command == '\n') continue; /* no command */
+			while (scanf("%c", &_) == 1 && _ != '\n'); /* empty the keyboad buffer */
+
 			switch (command) {
-				case 'c':
-					return;
-					break;
-				case 'r':
-					print_registers(tracee);
-					break;
-				default:
-					printf("invalid command: '%c'\n",
-							(int)command);
-					break;
+			case 'c':
+				return;
+				break;
+			case 'r':
+				print_registers(tracee);
+				break;
+			default:
+				printf("invalid command: '%c'\n",
+						(int)command);
+				break;
 			}
 		}
 	}
