@@ -63,11 +63,6 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	if (break_address == NULL) {
-		usage(*argv);
-		exit(1);
-	}
-
 	tracee_pid = launch_tracee(argv + optind);
 
 	if (tracee_pid > 0) {
@@ -118,8 +113,13 @@ static void setup_debugger(pid_t tracee) {
 	wait_for_signal(tracee, SIGTRAP, &wstatus);
 	print_wait_status_infos(wstatus);
 
+	while (break_address == NULL) {
+		break_address = prompt_address("enter the breakpoint address: ");
+	}
+
 	insert_breakpoint(tracee, break_address);
 
+	debugger_console(tracee);
 
 	ptrace(PTRACE_CONT, tracee, NULL, NULL);
 }
@@ -206,6 +206,7 @@ static const unsigned char ud2[] = {0x0f, 0x0b};
 static unsigned char breakpoint_restore[sizeof ud2];
 
 static void insert_breakpoint(pid_t tracee, void *address) {
+	printf("DEBUGGER: inserting breakpoint at address %p\n", address);
 	peek_mem(tracee, address, breakpoint_restore, sizeof breakpoint_restore);
 	poke_mem(tracee, address, ud2, sizeof ud2);
 }

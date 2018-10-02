@@ -222,3 +222,16 @@ int wait_for_signal(pid_t pid, int sig, int *wstatus) {
 	}
 	return 0;
 }
+
+void *prompt_address(char *prompt) {
+	void *ret = NULL;
+	char buf[128];
+
+	printf("%s", prompt);
+
+	if (fgets(buf, sizeof buf, stdin)) {
+		ret = (void*)strtoull(buf, NULL, 0);
+	}
+
+	return ret;
+}
