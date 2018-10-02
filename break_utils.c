@@ -6,6 +6,7 @@
  *
  */
 
+#define _LARGEFILE64_SOURCE
 #include <signal.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -15,6 +16,9 @@
 #include <sys/wait.h>
 #include <sys/ptrace.h>
 #include <sys/user.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 
 #include "break_utils.h"
 
@@ -29,113 +33,31 @@ union word {
 };
 
 void peek_mem(pid_t pid, void *address, unsigned char *buf, size_t len) {
-	uintptr_t a = (uintptr_t) address;
-	unsigned i;
-	union word w;
-	unsigned pre;
+	char name[512];
+	int memfd;
 
-	pre = (4 - (a % 4)) % 4;
+	sprintf(name, "/proc/%d/mem", pid);
+	memfd = open(name, O_RDONLY);
 
-	if (pre) {
-		w.l = ptrace(PTRACE_PEEKDATA, pid, a & ~3u);
+	lseek64(memfd, (off64_t)address, SEEK_CUR);
 
-		for (i = pre; i > 0 && len > 0; i--, len--) {
-			switch (i) {
-			case 3:
-				*buf++ = w.b._1;
-				break;
-			case 2:
-				*buf++ = w.b._2;
-				break;
-			case 1:
-				*buf++ = w.b._3;
-				break;
-			}
-		}
+	read(memfd, buf, len);
 
-		a = (a & ~3u) + 4;
-	}
-
-	for (i = 0; i < len / 4; i++) {
-		w.l = ptrace(PTRACE_PEEKDATA, pid, a);
-		*buf++ = w.b._0;
-		*buf++ = w.b._1;
-		*buf++ = w.b._2;
-		*buf++ = w.b._3;
-		a += 4;
-	}
-	len %= 4;
-
-	if (len) {
-		w.l = ptrace(PTRACE_PEEKDATA, pid, a);
-		switch (len) {
-		case 3:
-			buf[2] = w.b._2;
-		case 2:
-			buf[1] = w.b._1;
-		case 1:
-			buf[0] = w.b._0;
-		}
-	}
+	close(memfd);
 }
 
 void poke_mem(pid_t pid, void *address, const unsigned char *buf, size_t len) {
-	uintptr_t a = (uintptr_t) address;
-	unsigned i;
-	union word w;
-	unsigned pre;
+	char name[512];
+	int memfd;
 
-	pre = (4 - (a % 4)) % 4;
+	sprintf(name, "/proc/%d/mem", pid);
+	memfd = open(name, O_WRONLY);
 
-	if (pre) {
-		w.l = ptrace(PTRACE_PEEKDATA, pid, a & ~3u);
-		for (i = pre; i > 0 && len > 0; i--, len--) {
-			switch (i) {
-			case 3:
-				w.b._1 = *buf++;
-				break;
-			case 2:
-				w.b._2 = *buf++;
-				break;
-			case 1:
-				w.b._3 = *buf++;
-				break;
-			}
-		}
+	lseek64(memfd, (off64_t)address, SEEK_CUR);
 
-		ptrace(PTRACE_POKEDATA, pid, a & ~3u, w.l);
+	write(memfd, buf, len);
 
-		a = (a & ~3u) + 4;
-	}
-
-	for (i = 0; i < len / 4; i++) {
-		w.b._0 = *buf++;
-		w.b._1 = *buf++;
-		w.b._2 = *buf++;
-		w.b._3 = *buf++;
-
-		ptrace(PTRACE_POKEDATA, pid, a, w.l);
-
-		a += 4;
-	}
-
-	len %= 4;
-
-	if (len) {
-		w.l = ptrace(PTRACE_PEEKDATA, pid, a);
-		switch (len) {
-		case 3:
-			w.b._2 = buf[2];
-			/* FALLTHRU */
-		case 2:
-			w.b._1 = buf[1];
-			/* FALLTHRU */
-		case 1:
-			w.b._0 = buf[0];
-		}
-
-		ptrace(PTRACE_POKEDATA, pid, a, w.l);
-	}
+	close(memfd);
 }
 
 void print_registers(pid_t tracee) {
