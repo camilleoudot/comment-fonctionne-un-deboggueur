@@ -34,7 +34,6 @@ static void debugger_console(pid_t tracee);
 static void insert_breakpoint(pid_t tracee, void *address);
 static void remove_breakpoint(pid_t tracee, void *address) ;
 
-
 static void usage(char *name) {
 	printf("Runs the specified PROGRAM with the optional ARGS, and inserts "
 			"a software breakpoint at the given ADDRESS.\n"
@@ -91,7 +90,7 @@ static pid_t launch_tracee(char *argv[]) {
 }
 
 static void setup_tracee(void) {
-	printf("DEBUGGER: init tracee %d\n", getpid());
+	DBG("init tracee %d\n", getpid());
 	if (ptrace(PTRACE_TRACEME) != 0) {
 		perror("PTRACE_TRACEME");
 	}
@@ -99,7 +98,7 @@ static void setup_tracee(void) {
 
 static void setup_debugger(pid_t tracee) {
 	int wstatus;
-	printf("DEBUGGER: init debugging of PID %d\n", tracee);
+	DBG("init debugging of PID %d\n", tracee);
 
 	wait_for_signal(tracee, SIGSTOP, &wstatus);
 	print_wait_status_infos(wstatus);
@@ -119,8 +118,6 @@ static void setup_debugger(pid_t tracee) {
 
 	insert_breakpoint(tracee, break_address);
 
-	debugger_console(tracee);
-
 	ptrace(PTRACE_CONT, tracee, NULL, NULL);
 }
 
@@ -133,25 +130,30 @@ static void debug(pid_t tracee) {
 			break;
 		}
 
+		puts("");
+		print_wait_status_infos(wstatus);
+
 		if (WIFSTOPPED(wstatus)) {
+
 			if (handle_tracee_signal(tracee, WSTOPSIG(wstatus))
 					== reached_breakpoint)
 			{
-				remove_breakpoint(tracee, break_address);
-				printf("\nDEBUGGER: >>> PID %d reached the breakpoint at "
+				DBG(">>> PID %d reached the breakpoint at "
 						"address %p\n",
 						tracee,
 						break_address);
 
 				debugger_console(tracee);
 
-				printf("DEBUGGER: <<< resuming PID %d\n", tracee);
+				set_rip(tracee, break_address);
+				remove_breakpoint(tracee, break_address);
+
+				DBG("<<< resuming PID %d\n", tracee);
 				ptrace(PTRACE_CONT, tracee, NULL, NULL);
 			}
 		}
+
 		if (WIFEXITED(wstatus)) {
-			printf("DEBUGGER: child process exited with status %d\n",
-					WEXITSTATUS(wstatus));
 			break;
 		}
 	}
@@ -189,11 +191,12 @@ static enum tracee_status handle_tracee_signal(pid_t tracee, int sig) {
 	int ret = received_not_handled_signal;
 	siginfo_t si;
 
-	if (sig == SIGILL) {
+	if (sig == SIGTRAP) {
 		if (ptrace(PTRACE_GETSIGINFO, tracee, NULL, &si) != 0) {
 			perror("PTRACE_GETSIGINFO");
 		} else {
-			if (si.si_addr == break_address) {
+			if (si.si_code == SI_KERNEL
+					&& (void*)get_rip(tracee) == break_address + 1) {
 				ret = reached_breakpoint;
 			}
 		}
@@ -202,19 +205,15 @@ static enum tracee_status handle_tracee_signal(pid_t tracee, int sig) {
 	return ret;
 }
 
-static const unsigned char ud2[] = {0x0f, 0x0b};
-static unsigned char breakpoint_restore[sizeof ud2];
+static const unsigned char int3 = 0xcc;
+static unsigned char breakpoint_backup;
 
 static void insert_breakpoint(pid_t tracee, void *address) {
-	printf("DEBUGGER: inserting breakpoint at address %p\n", address);
-	peek_mem(tracee, address, breakpoint_restore, sizeof breakpoint_restore);
-	poke_mem(tracee, address, ud2, sizeof ud2);
+	DBG("inserting breakpoint at address %p\n", address);
+	peek_mem(tracee, address, &breakpoint_backup, 1);
+	poke_mem(tracee, address, &int3, 1);
 }
 
 static void remove_breakpoint(pid_t tracee, void *address) {
-	poke_mem(tracee, address, breakpoint_restore, sizeof breakpoint_restore);
+	poke_mem(tracee, address, &breakpoint_backup, 1);
 }
-
-
-
-

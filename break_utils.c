@@ -60,11 +60,46 @@ void poke_mem(pid_t pid, void *address, const unsigned char *buf, size_t len) {
 	close(memfd);
 }
 
+int set_registers(pid_t pid, struct user_regs_struct *regs) {
+	if (ptrace(PTRACE_SETREGS, pid, NULL, regs ) != 0) {
+		perror("PTRACE_SETREGS");
+		return 0;
+	} else {
+		return 1;
+	}
+}
+
+void set_rip(pid_t pid, void *rip) {
+	struct user_regs_struct regs;
+	if (get_registers(pid, &regs)) {
+		regs.rip = (unsigned long long)rip;
+		set_registers(pid, &regs);
+	}
+}
+
+int get_registers(pid_t pid, struct user_regs_struct *regs) {
+	if (ptrace(PTRACE_GETREGS, pid, NULL, regs ) != 0) {
+		perror("PTRACE_GETREGS");
+		return 0;
+	} else {
+		return 1;
+	}
+}
+
+void *get_rip(pid_t pid) {
+	struct user_regs_struct regs;
+	if (get_registers(pid, &regs)) {
+		return (void*)regs.rip;
+	} else {
+		return 0;
+	}
+}
+
+
 void print_registers(pid_t tracee) {
 	struct user_regs_struct regs;
-	if (ptrace(PTRACE_GETREGS, tracee, NULL, &regs ) != 0) {
-		perror("PTRACE_GETREGS");
-	} else {
+
+	if (get_registers(tracee, &regs)) {
 		printf("    rip: 0x%016llx\n", regs.rip);
 		printf("    rsp: 0x%016llx\n", regs.rsp);
 		printf("    rbp: 0x%016llx\n", regs.rbp);
@@ -114,12 +149,12 @@ static const char *sig_name(int signum) {
 
 void print_wait_status_infos(int wstatus) {
 	if (WIFEXITED(wstatus)) {
-		printf("DEBUGGER: child process exited with status %d\n",
+		DBG("child process exited with status %d\n",
 				WEXITSTATUS(wstatus));
 	}
 
 	if (WIFSIGNALED(wstatus)) {
-		printf("DEBUGGER: child process exited due to signal %d (%s)\n",
+		DBG("child process exited due to signal %d (%s)\n",
 				WTERMSIG(wstatus), sig_name(WTERMSIG(wstatus)));
 		if (WCOREDUMP(wstatus)) {
 			puts("a core dump was generated");
@@ -127,7 +162,7 @@ void print_wait_status_infos(int wstatus) {
 	}
 
 	if (WIFSTOPPED(wstatus)) {
-		printf("DEBUGGER: child process received signal %d (%s)\n",
+		DBG("child process received signal %d (%s)\n",
 				WSTOPSIG(wstatus), sig_name(WSTOPSIG(wstatus)));
 	}
 
