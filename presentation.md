@@ -171,8 +171,6 @@ x86_linux_dr_set (ptid_t ptid, int regnum, unsigned long value)
 }
 ```
 
-# Points d'arrêt logiciels
-
 - - -
 
 > Since _hardware breakpoints_ depend on hardware resources, they may be
@@ -186,13 +184,15 @@ x86_linux_dr_set (ptid_t ptid, int regnum, unsigned long value)
 
 > -- [**GDB wiki**](https://sourceware.org/gdb/wiki/Internals/Breakpoint%20Handling)
 
+# Points d'arrêt logiciels
+
 ## Problèmes à résoudre
 
 - remplacer une instruction
 	- accéder à l'espace mémoire du processus tracé depuis le débogueur
 	- trouver l'adresse où se trouve l'instruction à remplacer
 	- causer une exception dans le processus tracé
-- capturer l'exception et continuer le processus tracé
+- capturer l'exception puis continuer le processus tracé
 
 # Accéder à l'espace mémoire du processus tracé
 
@@ -206,8 +206,7 @@ x86_linux_dr_set (ptid_t ptid, int regnum, unsigned long value)
 - permet à un processus parent de contrôler l'exécution d'un processus enfant
 	- **`PTRACE_PEEKDATA`**, **`PTRACE_POKEDATA`** : lire et écrire dans son espace mémoire
 	- **`PTRACE_PEEKUSER`**, **`PTRACE_POKEUSER`** : lire et écrire dans la structure
-	  du noyau représentant le processus (y compris la sauvegarde des valeurs
-	  des registres)
+	  du noyau représentant le processus (notamment l'état des registres)
 
 ### `man 2 ptrace`
 ```c
@@ -355,7 +354,7 @@ div %rdi ;divise %rdx:%rax par %rdi
 
 - erreur de segmentation
 ```asm
-mov $42, ($0) ;l'adresse 0x0 n'est pas mappée
+mov $42, ($0x0) ;l'adresse 0x0 n'est pas mappée
 mov $42, ($0x400400) ;l'adresse 0x400400 est protégée en écriture
 ```
 
@@ -371,8 +370,8 @@ ud2 ;opcode réservé à cet effet
 
 - interruption logicielle
 ```asm
-int $0x80
-int3 ;équivalent à `int $3`
+int $0x80 ;l'ancienne méthode pour faire un appel système
+int3 ;fonctionnellement équivalent à `int $3`
 ```
 
 - - -
@@ -465,3 +464,5 @@ ptrace(PTRACE_CONT, tracee, NULL, NULL);
 - - -
 
 ![](img/flow_2.pdf)
+
+# Démo
