@@ -173,7 +173,7 @@ void print_wait_status_infos(int wstatus) {
 
 int wait_for_signal(pid_t pid, int sig, int *wstatus) {
 	if (waitpid(pid, wstatus, 0) > 0) {
-		if (WIFSTOPPED(*wstatus) && WSTOPSIG(*wstatus)) {
+		if (WIFSTOPPED(*wstatus) && WSTOPSIG(*wstatus) == sig) {
 			return 1;
 		}
 	}
