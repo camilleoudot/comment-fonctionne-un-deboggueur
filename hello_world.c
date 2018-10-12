@@ -3,8 +3,8 @@
 void print_letter(char c);
 
 int main(int argc, char *argv[]) {
-	printf("\033[1;32m*** Start of %s...\033[0m\n", *argv);
 	setvbuf(stdout, NULL, _IONBF, 0);
+
 
 	print_letter('H');
 	print_letter('e');
@@ -57,7 +57,6 @@ int main(int argc, char *argv[]) {
 	print_letter('.');
 	print_letter('.');
 	print_letter('\n');
-	printf("\033[1;32m*** End of %s...\033[0m\n", *argv);
 
 	return 0;
 }
