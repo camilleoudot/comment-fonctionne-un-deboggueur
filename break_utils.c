@@ -39,7 +39,7 @@ void peek_mem(pid_t pid, void *address, unsigned char *buf, size_t len) {
 	sprintf(name, "/proc/%d/mem", pid);
 	memfd = open(name, O_RDONLY);
 
-	lseek64(memfd, (off64_t)address, SEEK_CUR);
+	lseek64(memfd, (off64_t)address, SEEK_SET);
 
 	read(memfd, buf, len);
 
@@ -53,7 +53,7 @@ void poke_mem(pid_t pid, void *address, const unsigned char *buf, size_t len) {
 	sprintf(name, "/proc/%d/mem", pid);
 	memfd = open(name, O_WRONLY);
 
-	lseek64(memfd, (off64_t)address, SEEK_CUR);
+	lseek64(memfd, (off64_t)address, SEEK_SET);
 
 	write(memfd, buf, len);
 
