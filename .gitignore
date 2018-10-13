@@ -6,3 +6,4 @@ presentation-*.pdf
 hello-rust
 img/*.pdf
 **/.~lock.*
+.gdb_history
